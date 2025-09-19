@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cardiac Monitor - ECG Visualization</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    :root {
+      --primary: #ff3838;
+      --primary-dark: #e02c39;
+      --secondary: #0f172a;
+      --text: #f1f5f9;
+      --background: #020617;
+      --panel-bg: #1e293b;
+      --graph-bg: #000000;
+      --overlay-bg: rgba(15, 23, 42, 0.85);
+      --success: #2ed573;
+      --button-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
+    }
+    [data-theme="light"] {
+      --primary: #ff3838;
+      --primary-dark: #e02c39;
+      --secondary: #e2e8f0;
+      --text: #0f172a;
+      --background: #ffffff;
+      --panel-bg: #e9ecef;
+      --graph-bg: #ffffff;
+      --overlay-bg: rgba(255, 255, 255, 0.85);
+    }
+    /* Base styles */
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: var(--background);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      touch-action: manipulation;
+    }
+    /* Fullscreen canvas container */
+    .canvas-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--graph-bg);
+      overflow: hidden;
+    }
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: var(--graph-bg);
+    }
+    /* Overlay for timer and BPM */
+    .overlay-top {
+      position: absolute;
+      top: 15px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      pointer-events: auto;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    .overlay-metric {
+      background-color: var(--overlay-bg);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      backdrop-filter: blur(5px);
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .overlay-bpm {
+      background-color: var(--overlay-bg);
+      padding: 8px 16px;
+      border-radius: 25px;
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(5px);
+      white-space: nowrap;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+    }
+    .heart-icon {
+      width: 18px;
+      height: 18px;
+      background-color: var(--primary);
+      transform: rotate(45deg);
+      position: relative;
+      opacity: 0;
+    }
+    /* Heartbeat animation triggered on peak detection */
+    .heart-icon.beating {
+      animation: beat 0.3s ease;
+    }
+    @keyframes beat {
+      0% { transform: scale(1) rotate(45deg); opacity: 1; }
+      50% { transform: scale(1.3) rotate(45deg); opacity: 1; }
+      100% { transform: scale(1) rotate(45deg); opacity: 1; }
+    }
+    .heart-icon:before,
+    .heart-icon:after {
+      content: "";
+      width: 18px;
+      height: 18px;
+      background-color: var(--primary);
+      border-radius: 50%;
+      position: absolute;
+    }
+    .heart-icon:before {
+      top: -9px;
+      left: 0;
+    }
+    .heart-icon:after {
+      top: 0;
+      left: -9px;
+    }
+    /* Fullscreen toggle button */
+    .fullscreen-btn {
+      position: absolute;
+      bottom: 15px;
+      right: 15px;
+      background-color: var(--overlay-bg);
+      border: none;
+      color: var(--text);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      pointer-events: auto;
+      z-index: 20;
+      opacity: 0.8;
+      transition: all 0.2s;
+      backdrop-filter: blur(5px);
+    }
+    .fullscreen-btn:hover {
+      opacity: 1;
+      transform: scale(1.1);
+    }
+    .fullscreen-btn svg {
+      width: 18px;
+      height: 18px;
+      fill: currentColor;
+    }
+    /* Controls overlay */
+    .controls-overlay {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+      z-index: 15;
+      flex-wrap: wrap;
+      justify-content: center;
+      width: 100%;
+      padding: 0 10px;
+      box-sizing: border-box;
+    }
+    .btn {
+      background-color: var(--secondary);
+      border: none;
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-weight: 600;
+      box-shadow: var(--button-shadow);
+      min-width: 80px;
+      touch-action: manipulation;
+    }
+    .btn:hover:not(:disabled) {
+      background-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    /* Theme toggle buttons */
+    .theme-toggle, .fullscreen-theme-toggle {
+      position: absolute;
+      top: 15px;
+      right: 15px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--secondary);
+      color: var(--text);
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      z-index: 99999;
+      transition: all 0.3s;
+      touch-action: manipulation;
+    }
+    .theme-toggle:hover, .fullscreen-theme-toggle:hover {
+      transform: scale(1.1);
+    }
+    .theme-toggle svg, .fullscreen-theme-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+    .fullscreen-theme-toggle {
+      display: none;
+    }
+    .canvas-container.fullscreen .fullscreen-theme-toggle {
+      display: flex;
+    }
+    /* Media queries for responsiveness */
+    @media (max-width: 480px) {
+      .overlay-top { top: 10px; gap: 6px; }
+      .overlay-metric { padding: 4px 8px; font-size: 0.7rem; }
+      .overlay-bpm { padding: 6px 12px; font-size: 1rem; gap: 6px; }
+      .heart-icon { width: 14px; height: 14px; }
+      .heart-icon:before, .heart-icon:after { width: 14px; height: 14px; }
+      .heart-icon:before { top: -7px; }
+      .heart-icon:after { left: -7px; }
+      .controls-overlay { bottom: 15px; gap: 6px; }
+      .btn { padding: 6px 10px; font-size: 12px; min-width: 70px; }
+      .theme-toggle, .fullscreen-theme-toggle { width: 36px; height: 36px; }
+      .theme-toggle svg, .fullscreen-theme-toggle svg { width: 18px; height: 18px; }
+      .fullscreen-btn { width: 32px; height: 32px; bottom: 10px; right: 10px; }
+      .fullscreen-btn svg { width: 16px; height: 16px; }
+    }
+    /* Additional media query for portrait mode */
+    @media (orientation: portrait) {
+      /* Move fullscreen button higher so it does not overlap with bottom controls */
+      .fullscreen-btn {
+        bottom: 70px;
+      }
+      .controls-overlay {
+        bottom: 15px;
+      }
+    }
+    @media (max-width: 360px) {
+      .overlay-top { flex-direction: column; align-items: center; gap: 4px; }
+      .controls-overlay { flex-direction: column; align-items: center; }
+      .btn { width: 100%; max-width: 120px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Fullscreen display container -->
+  <div id="deviceContainer"></div>
+
+  <!-- Theme toggle button using original icon -->
+  <button class="theme-toggle" aria-label="Toggle theme">
+    <svg viewBox="0 0 24 24">
+      <path d="M12 18c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-10c-2.2 0-4 1.8-4 4s1.8 4 4 4 4-1.8 4-4-1.8-4-4-4zm-7-2c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm14 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zM12 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm0 22c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm-9-9c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm18 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zM5.6 4.6c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm12.8 12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm0-12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm-12.8 12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0z"/>
+    </svg>
+  </button>
+
+  <script type="module">
+    import { WebglPlot, ColorRGBA, WebglLine } from "https://cdn.skypack.dev/webgl-plot";
+
+    // === Filter Classes ===
+    class NotchFilter {
+      constructor() {
+        this.z1_1 = 0; this.z2_1 = 0;
+        this.z1_2 = 0; this.z2_2 = 0;
+      }
+      process(input) {
+        let output = input;
+        this.x_1 = output - (-1.56858163 * this.z1_1) - (0.96424138 * this.z2_1);
+        output = 0.96508099 * this.x_1 + (-1.56202714 * this.z1_1) + (0.96508099 * this.z2_1);
+        this.z2_1 = this.z1_1;
+        this.z1_1 = this.x_1;
+        this.x_2 = output - (-1.61100358 * this.z1_2) - (0.96592171 * this.z2_2);
+        output = 1.0 * this.x_2 + (-1.61854514 * this.z1_2) + (1.0 * this.z2_2);
+        this.z2_2 = this.z1_2;
+        this.z1_2 = this.x_2;
+        return output;
+      }
+    }
+    class ECGFilter {
+      constructor() { this.z1 = 0; this.z2 = 0; }
+      process(input) {
+        let output = input;
+        this.x1 = output - (-1.47548044 * this.z1) - (0.58691951 * this.z2);
+        output = 0.02785977 * this.x1 + (0.05571953 * this.z1) + (0.02785977 * this.z2);
+        this.z2 = this.z1; this.z1 = this.x1;
+        return output;
+      }
+    }
+
+    // BLE constants and parameters
+    const SERVICE_UUID = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
+    const DATA_CHAR_UUID = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
+    const CONTROL_CHAR_UUID = "0000ff01-0000-1000-8000-00805f9b34fb";
+    const SINGLE_SAMPLE_LEN = 7;
+    const BLOCK_COUNT = 10;
+    const NEW_PACKET_LEN = SINGLE_SAMPLE_LEN * BLOCK_COUNT;
+    const DEBOUNCE_TIME = 1000;
+    const NUM_POINTS = 1200;
+    const SAMPLE_RATE = 500;
+
+    function createDevicePanel() {
+      // Create the full-screen canvas container
+      const canvasContainer = document.createElement("div");
+      canvasContainer.classList.add("canvas-container");
+      // Create canvas element
+      const canvas = document.createElement("canvas");
+      canvasContainer.appendChild(canvas);
+      // Create overlay container for overlays
+      const overlay = document.createElement("div");
+      overlay.classList.add("canvas-overlay");
+      // Combined top overlay for timer and BPM
+      const overlayTop = document.createElement("div");
+      overlayTop.classList.add("overlay-top");
+      const timeDisplay = document.createElement("div");
+      timeDisplay.classList.add("overlay-metric");
+      timeDisplay.textContent = "00:00";
+      const bpmDisplay = document.createElement("div");
+      bpmDisplay.classList.add("overlay-bpm");
+      const heartIcon = document.createElement("div");
+      heartIcon.classList.add("heart-icon");
+      bpmDisplay.appendChild(heartIcon);
+      const bpmText = document.createElement("span");
+      bpmText.textContent = "-- BPM";
+      bpmDisplay.appendChild(bpmText);
+      overlayTop.append(timeDisplay, bpmDisplay);
+      overlay.appendChild(overlayTop);
+      // Fullscreen theme toggle button
+      const fullscreenThemeToggle = document.createElement("button");
+      fullscreenThemeToggle.classList.add("fullscreen-theme-toggle");
+      fullscreenThemeToggle.setAttribute("aria-label", "Toggle theme in fullscreen");
+      fullscreenThemeToggle.innerHTML = `
+        <svg viewBox="0 0 24 24">
+          <path d="M12 18c-3.3 0-6-2.7-6-6s2.7-6 6-6 6 2.7 6 6-2.7 6-6 6zm0-10c-2.2 0-4 1.8-4 4s1.8 4 4 4 4-1.8 4-4-1.8-4-4-4zm-7-2c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm14 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zM12 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm0 22c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm-9-9c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zm18 0c-.6 0-1-.4-1-1s.4-1 1-1 1 .4 1 1-.4 1-1 1zM5.6 4.6c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm12.8 12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm0-12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0zm-12.8 12.8c-.4-.4-.4-1 0-1.4s1-.4 1.4 0c.4.4.4 1 0 1.4-.4.4-1 .4-1.4 0z"/>
+        </svg>
+      `;
+      overlay.appendChild(fullscreenThemeToggle);
+      // Fullscreen toggle button
+      const fullscreenBtn = document.createElement("button");
+      fullscreenBtn.classList.add("fullscreen-btn");
+      fullscreenBtn.innerHTML = `
+        <svg viewBox="0 0 24 24">
+          <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+        </svg>
+      `;
+      fullscreenBtn.addEventListener("click", toggleFullscreen);
+      overlay.appendChild(fullscreenBtn);
+      // Controls overlay with merged Connect/Disconnect and Toggle Peaks button
+      const controlsOverlay = document.createElement("div");
+      controlsOverlay.classList.add("controls-overlay");
+      // Merged connect/disconnect button; clicking it will both connect and start streaming
+      const connectToggleBtn = document.createElement("button");
+      connectToggleBtn.textContent = "Connect";
+      connectToggleBtn.classList.add("btn");
+      // Toggle Peaks button
+      const peaksToggleBtn = document.createElement("button");
+      peaksToggleBtn.textContent = "Hide Peaks";
+      peaksToggleBtn.classList.add("btn");
+      controlsOverlay.append(connectToggleBtn, peaksToggleBtn);
+      overlay.appendChild(controlsOverlay);
+      canvasContainer.appendChild(overlay);
+      document.getElementById("deviceContainer").appendChild(canvasContainer);
+
+      async function toggleFullscreen() {
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(err => { console.error("Error exiting fullscreen:", err); });
+          canvasContainer.classList.remove("fullscreen");
+          if (screen.orientation && screen.orientation.unlock) { screen.orientation.unlock(); }
+        } else {
+          try {
+            await canvasContainer.requestFullscreen();
+            canvasContainer.classList.add("fullscreen");
+            if (screen.orientation && screen.orientation.lock) { await screen.orientation.lock("landscape"); }
+          } catch (err) { console.error("Error entering fullscreen:", err); }
+        }
+      }
+
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = canvas.clientWidth * dpr;
+      canvas.height = canvas.clientHeight * dpr;
+
+      // Create connection object
+      const connection = {
+        device: null,
+        server: null,
+        controlChar: null,
+        dataChar: null,
+        streaming: false,
+        connected: false,
+        canvas: canvas,
+        dataCh0: new Array(NUM_POINTS).fill(0),
+        sampleIndex: 0,
+        prevSampleCounter: null,
+        lastActionTime: 0,
+        wglp: null,
+        line0: null,
+        // Second line for peaks:
+        peakLine: null,
+        peakLineData: new Array(NUM_POINTS).fill(0),
+        startTime: null,
+        notch0: new NotchFilter(),
+        ecg0: new ECGFilter(),
+        lastBeatTime: 0,
+        beatDetected: false,
+        peaksVisible: true,
+
+        updateButtonStates: function() {
+          // Update merged connect/disconnect button text
+          connectToggleBtn.textContent = this.connected ? "Disconnect" : "Connect";
+        },
+        normalizeSample: function(sample) {
+          const ADC_MAX = 4096;
+          return (sample - ADC_MAX / 2) * (2 / ADC_MAX);
+        },
+        processSample: function(dataView) {
+          if (dataView.byteLength !== SINGLE_SAMPLE_LEN) return;
+          const sampleCounter = dataView.getUint8(0);
+          if (this.prevSampleCounter === null) {
+            this.prevSampleCounter = sampleCounter;
+          } else {
+            const expected = (this.prevSampleCounter + 1) % 256;
+            if (sampleCounter !== expected) {
+              console.log(`Missing sample: expected ${expected}, got ${sampleCounter}`);
+            }
+            this.prevSampleCounter = sampleCounter;
+          }
+          const rawCh0 = dataView.getInt16(1, false);
+          let normCh0 = this.normalizeSample(Math.max(0, Math.min(4096, rawCh0)));
+          normCh0 = this.ecg0.process(this.notch0.process(normCh0));
+          this.dataCh0[this.sampleIndex] = normCh0;
+          this.sampleIndex = (this.sampleIndex + 1) % NUM_POINTS;
+        },
+        handleNotification: function(event) {
+          const value = event.target.value;
+          if (value.byteLength === NEW_PACKET_LEN) {
+            for (let i = 0; i < NEW_PACKET_LEN; i += SINGLE_SAMPLE_LEN) {
+              const sampleBuffer = value.buffer.slice(i, i + SINGLE_SAMPLE_LEN);
+              this.processSample(new DataView(sampleBuffer));
+            }
+          } else if (value.byteLength === SINGLE_SAMPLE_LEN) {
+            this.processSample(new DataView(value.buffer));
+          } else {
+            console.log("Unexpected packet length: " + value.byteLength);
+          }
+        },
+        connectBLE: async function() {
+          try {
+            if (!navigator.bluetooth) {
+              console.log("Web Bluetooth API not available.");
+              return;
+            }
+            console.log("Requesting Bluetooth device...");
+            this.device = await navigator.bluetooth.requestDevice({
+              filters: [{ namePrefix: "NPG" }],
+              optionalServices: [SERVICE_UUID],
+            });
+            console.log("Connecting to GATT Server...");
+            this.server = await this.device.gatt.connect();
+            console.log("Getting Service...");
+            const service = await this.server.getPrimaryService(SERVICE_UUID);
+            console.log("Getting Control Characteristic...");
+            this.controlChar = await service.getCharacteristic(CONTROL_CHAR_UUID);
+            console.log("Getting Data Characteristic...");
+            this.dataChar = await service.getCharacteristic(DATA_CHAR_UUID);
+            this.connected = true;
+            this.updateButtonStates();
+            console.log("Device connected.");
+            // Automatically send START command to begin streaming
+            await this.startStream();
+          } catch (error) { console.log("Error: " + error); }
+        },
+        disconnectBLE: async function() {
+          try {
+            if (this.device && this.device.gatt.connected) {
+              console.log("Disconnecting...");
+              await this.device.gatt.disconnect();
+              this.connected = false;
+              this.streaming = false;
+              this.updateButtonStates();
+              console.log("Device disconnected.");
+              this.startTime = null;
+              timeDisplay.textContent = "00:00";
+            }
+          } catch (error) { console.log("Error disconnecting: " + error); }
+        },
+        startStream: async function() {
+          try {
+            if (!this.dataChar || !this.controlChar) {
+              console.log("Device not connected.");
+              return;
+            }
+            console.log("Sending START command...");
+            await this.controlChar.writeValue(new TextEncoder().encode("START"));
+            console.log("Starting notifications...");
+            await this.dataChar.startNotifications();
+            this.dataChar.addEventListener("characteristicvaluechanged", this.handleNotification.bind(this));
+            this.streaming = true;
+            console.log("Streaming started.");
+            this.startTime = Date.now();
+            updateMonitoringTime();
+          } catch (error) { console.log("Error starting stream: " + error); }
+        },
+        computeBPM: function() {
+          const orderedData = this.dataCh0.slice(this.sampleIndex)
+                              .concat(this.dataCh0.slice(0, this.sampleIndex));
+          const maxVal = Math.max(...orderedData);
+          const threshold = maxVal * 0.5;
+          const refractorySamples = Math.floor(SAMPLE_RATE * 0.2);
+          let lastPeakIndex = -refractorySamples;
+          const peakIndices = [];
+          for (let i = 1; i < orderedData.length - 1; i++) {
+            if (orderedData[i] > threshold &&
+                orderedData[i] > orderedData[i - 1] &&
+                orderedData[i] >= orderedData[i + 1]) {
+              if (i - lastPeakIndex >= refractorySamples) {
+                peakIndices.push(i);
+                lastPeakIndex = i;
+                this.triggerHeartbeat();
+              }
+            }
+          }
+          if (peakIndices.length < 2) { return null; }
+          let intervals = [];
+          for (let i = 1; i < peakIndices.length; i++) {
+            intervals.push(peakIndices[i] - peakIndices[i - 1]);
+          }
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          const bpm = (60 * SAMPLE_RATE) / avgInterval;
+          if (bpm < 40 || bpm > 200) { return null; }
+          return bpm;
+        },
+        triggerHeartbeat: function() {
+          // Sync heartbeat animation with each detected peak
+          heartIcon.classList.remove("beating");
+          // Trigger reflow to restart animation
+          void heartIcon.offsetWidth;
+          heartIcon.classList.add("beating");
+        },
+        updateBPMDisplay: function(bpm) {
+          if (bpm !== null) {
+            bpmText.textContent = Math.round(bpm) + " BPM";
+          } else {
+            bpmText.textContent = "-- BPM";
+          }
+        },
+        // Toggle the peaks visibility by updating the peak line color
+        togglePeaks: function() {
+          this.peaksVisible = !this.peaksVisible;
+          if (this.peaksVisible) {
+            // Show peaks (green, opaque)
+            this.peakLine.color = new ColorRGBA(0, 1, 0, 1);
+            peaksToggleBtn.textContent = "Hide Peaks";
+          } else {
+            // Hide peaks (set alpha to 0)
+            this.peakLine.color = new ColorRGBA(0, 1, 0, 0);
+            peaksToggleBtn.textContent = "Show Peaks";
+          }
+        }
+      };
+
+      // Initialize WebGLPlot and main ECG line
+      connection.wglp = new WebglPlot(canvas);
+      connection.line0 = new WebglLine(new ColorRGBA(0.8, 0.2, 0.2, 1), NUM_POINTS);
+      connection.line0.lineWidth = 40;
+      connection.line0.arrangeX();
+      connection.wglp.addLine(connection.line0);
+
+      // Second line for peak highlighting (initially visible)
+      connection.peakLine = new WebglLine(new ColorRGBA(0, 1, 0, 1), NUM_POINTS);
+      connection.peakLine.lineWidth = 2;
+      connection.peakLine.arrangeX();
+      connection.wglp.addLine(connection.peakLine);
+
+      // Animation loop for plotting ECG and drawing peak highlights
+      function animate() {
+        requestAnimationFrame(animate);
+        if (!connection.dataCh0) return;
+        const maxCh0 = Math.max(...connection.dataCh0.map(Math.abs));
+        const currentMax = Math.max(maxCh0, 1);
+        const scaleFactor = currentMax > 0.9 ? 0.9 / currentMax : 1;
+        for (let i = 0; i < NUM_POINTS; i++) {
+          connection.line0.setY(i, connection.dataCh0[i] * scaleFactor);
+        }
+        connection.peakLineData.fill(0);
+        const threshold = 0.5 * maxCh0;
+        const refractorySamples = Math.floor(SAMPLE_RATE * 0.2);
+        let lastPeakIndex = -refractorySamples;
+        const plateauWidth = 15;
+        const peakOffset = 0.03;
+        for (let i = 1; i < NUM_POINTS - 1; i++) {
+          const val = connection.dataCh0[i] * scaleFactor;
+          if (
+            val > connection.dataCh0[i - 1] * scaleFactor &&
+            val >= connection.dataCh0[i + 1] * scaleFactor &&
+            val > 0.1
+          ) {
+            if (i - lastPeakIndex >= refractorySamples) {
+              for (let j = i - plateauWidth; j <= i + plateauWidth; j++) {
+                if (j >= 0 && j < NUM_POINTS) {
+                  connection.peakLineData[j] = val + peakOffset;
+                }
+              }
+              lastPeakIndex = i;
+            }
+          }
+        }
+        for (let i = 0; i < NUM_POINTS; i++) {
+          connection.peakLine.setY(i, connection.peakLineData[i]);
+        }
+        connection.wglp.update();
+      }
+      animate();
+
+      // BPM calculation and display update
+      const bpmWindow = [];
+      const windowSize = 5;
+      let displayedBPM = null;
+      const maxChangePerUpdate = 2;
+      function updateMonitoringTime() {
+        if (connection.startTime) {
+          const elapsed = Math.floor((Date.now() - connection.startTime) / 1000);
+          const minutes = Math.floor(elapsed / 60).toString().padStart(2, '0');
+          const seconds = (elapsed % 60).toString().padStart(2, '0');
+          timeDisplay.textContent = `${minutes}:${seconds}`;
+          requestAnimationFrame(updateMonitoringTime);
+        }
+      }
+      setInterval(() => {
+        const bpm = connection.computeBPM();
+        if (bpm !== null) {
+          bpmWindow.push(bpm);
+          if (bpmWindow.length > windowSize) { bpmWindow.shift(); }
+          const avgBPM = bpmWindow.reduce((a, b) => a + b, 0) / bpmWindow.length;
+          if (displayedBPM === null) { displayedBPM = avgBPM; }
+          else {
+            const diff = avgBPM - displayedBPM;
+            if (Math.abs(diff) > maxChangePerUpdate) {
+              displayedBPM += Math.sign(diff) * maxChangePerUpdate;
+            } else {
+              displayedBPM = avgBPM;
+            }
+          }
+          connection.updateBPMDisplay(displayedBPM);
+        } else {
+          connection.updateBPMDisplay(null);
+        }
+      }, 1000);
+
+      // Attach event listeners to control buttons
+      connectToggleBtn.addEventListener("click", function() {
+        if (!connection.connected) {
+          connection.connectBLE();
+        } else {
+          connection.disconnectBLE();
+        }
+      });
+      peaksToggleBtn.addEventListener("click", connection.togglePeaks.bind(connection));
+      connection.updateButtonStates();
+
+      return connection;
+    }
+
+    // Theme toggle functionality
+    function toggleTheme() {
+      const currentTheme = document.documentElement.getAttribute('data-theme');
+      if (currentTheme === 'light') {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.setAttribute('data-theme', 'light');
+        localStorage.setItem('theme', 'light');
+      }
+    }
+
+    const themeToggle = document.querySelector('.theme-toggle');
+    themeToggle.addEventListener('click', toggleTheme);
+    const savedTheme = localStorage.getItem('theme');
+    if (savedTheme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    }
+
+    createDevicePanel();
+
+    document.addEventListener("fullscreenchange", function() {
+      if (!document.fullscreenElement) {
+        const fullscreenContainers = document.querySelectorAll(".canvas-container.fullscreen");
+        fullscreenContainers.forEach(container => {
+          container.classList.remove("fullscreen");
+        });
+      }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const fullscreenThemeToggle = document.querySelector('.fullscreen-theme-toggle');
+      if (fullscreenThemeToggle) {
+        fullscreenThemeToggle.addEventListener('click', toggleTheme);
+      }
+    });
+  </script>
+</body>
+</html>
