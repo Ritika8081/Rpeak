@@ -22,9 +22,7 @@ export async function loadBeatLevelData(
   originalRate = 360,
   targetRate = 360  // Keep original rate - no resampling
 ) {
-  console.log(`Loading ECG from: ${ecgPath}`);
-  console.log(`Loading annotations from: ${annPath}`);
-  console.log(`Using original sampling rate: ${originalRate}Hz (no resampling)`);
+
 
   // Load ECG CSV (MLII lead)
   const ecgSignal: number[] = await new Promise((resolve, reject) => {
@@ -32,8 +30,7 @@ export async function loadBeatLevelData(
       download: true,
       header: false,
       complete: (results) => {
-        console.log(`ECG CSV rows: ${results.data.length}`);
-        console.log(`First 5 ECG rows:`, results.data.slice(0, 5));
+      
         
         const signal = results.data
           .map((row) => {
@@ -42,12 +39,11 @@ export async function loadBeatLevelData(
           })
           .filter((v: number) => !isNaN(v));
         
-        console.log(`ECG signal length after filtering: ${signal.length}`);
-        console.log(`First 10 ECG values:`, signal.slice(0, 10));
+      
         resolve(signal);
       },
       error: (err) => {
-        console.error(`ECG parse error:`, err);
+       
         reject(err);
       }
     });
@@ -59,9 +55,7 @@ export async function loadBeatLevelData(
       download: true,
       header: true,
       complete: (results) => {
-        console.log(`Annotation CSV rows: ${results.data.length}`);
-        console.log(`First 5 annotation rows:`, results.data.slice(0, 5));
-        
+          
         const anns = results.data
           .map((row) => {
             const r = row as { index: string; annotation_symbol: string };
@@ -73,14 +67,11 @@ export async function loadBeatLevelData(
           })
           .filter((ann: { index: number; annotation_symbol: string }) => {
             const valid = !isNaN(ann.index) && ann.annotation_symbol;
-            if (!valid) {
-              console.log('Filtered out invalid annotation:', ann);
-            }
+            
             return valid;
           });
         
-        console.log(`Annotations length after filtering: ${anns.length}`);
-        console.log(`First 10 annotations:`, anns.slice(0, 10));
+       
         resolve(anns);
       },
       error: (err) => {
@@ -94,22 +85,17 @@ export async function loadBeatLevelData(
   const finalECG = ecgSignal;
   const finalAnnotations = annotations.filter(ann => {
     const valid = ann.index >= 0 && ann.index < finalECG.length;
-    if (!valid) {
-      console.log(`Filtered out annotation with invalid index: ${ann.index} (max: ${finalECG.length})`);
-    }
+    
     return valid;
   });
   
-  console.log(`Using original ECG length: ${finalECG.length}`);
-  console.log(`Final annotations length: ${finalAnnotations.length}`);
-
+  
   // Extract beats around R-peaks
   const beats: number[][] = [];
   const labels: string[] = [];
   const halfBeat = Math.floor(beatLength / 2); // 67 samples for 135-sample beats
   
-  console.log(`Beat extraction - halfBeat: ${halfBeat}, beatLength: ${beatLength}`);
-  console.log(`Beat duration: ${(beatLength / originalRate * 1000).toFixed(1)}ms at ${originalRate}Hz`);
+  
 
   let validBeats = 0;
   let invalidMapping = 0;
@@ -121,7 +107,7 @@ export async function loadBeatLevelData(
     const mappedClass = mapAnnotationToAAMI(ann.annotation_symbol);
     if (!mappedClass) {
       invalidMapping++;
-      if (idx < 5) console.log(`No mapping for annotation: ${ann.annotation_symbol}`);
+     
       return;
     }
     
@@ -130,14 +116,14 @@ export async function loadBeatLevelData(
     
     if (startIdx < 0 || endIdx > finalECG.length) {
       invalidBounds++;
-      if (idx < 5) console.log(`Invalid bounds: start=${startIdx}, end=${endIdx}, signal length=${finalECG.length}`);
+      
       return;
     }
     
     const beat = finalECG.slice(startIdx, endIdx);
     if (beat.length !== beatLength) {
       invalidLength++;
-      if (idx < 5) console.log(`Invalid beat length: ${beat.length}, expected: ${beatLength}`);
+     
       return;
     }
     
@@ -146,7 +132,7 @@ export async function loadBeatLevelData(
     const std = Math.sqrt(beat.reduce((a, b) => a + (b - mean) ** 2, 0) / beat.length);
     if (std <= 0.001) {
       invalidStd++;
-      if (idx < 5) console.log(`Invalid std: ${std}, beat values:`, beat.slice(0, 5));
+      
       return;
     }
     
@@ -154,14 +140,6 @@ export async function loadBeatLevelData(
     labels.push(mappedClass);
     validBeats++;
   });
-
-  console.log(`Beat extraction summary:`);
-  console.log(`- Valid beats: ${validBeats}`);
-  console.log(`- Invalid mapping: ${invalidMapping}`);
-  console.log(`- Invalid bounds: ${invalidBounds}`);
-  console.log(`- Invalid length: ${invalidLength}`);
-  console.log(`- Invalid std: ${invalidStd}`);
-  console.log(`- Total annotations processed: ${finalAnnotations.length}`);
 
   return { beats, labels };
 }

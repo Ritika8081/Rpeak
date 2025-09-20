@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useRef, useState } from "react";
-import { Bluetooth, Eye, EyeOff, Activity, Zap, BarChart3, TrendingUp, Play, Square, Clock } from "lucide-react";
+import { Bluetooth, Eye, EyeOff, Activity, Zap, TrendingUp, Play, Square, Clock } from "lucide-react";
 import { WebglPlot, WebglLine, ColorRGBA } from "webgl-plot";
 import { BPMCalculator, filterQRS } from '../lib/bpmCalculator';
 import { HighpassFilter, NotchFilter, LowpassFilter } from "../lib/filters";
@@ -9,8 +9,6 @@ import { PQRSTDetector, PQRSTPoint } from '../lib/pqrstDetector';
 import { PanTompkinsDetector } from '../lib/panTompkinsDetector';
 import { ECGIntervalCalculator, ECGIntervals } from '../lib/ecgIntervals';
 import * as tf from "@tensorflow/tfjs";
-import { checkModelExists } from '../lib/modelTester';
-import { zscoreNorm } from "../lib/modelTrainer";
 import SessionRecording, { PatientInfo, RecordingSession } from './SessionRecording';
 import { SessionAnalyzer, SessionAnalysisResults } from '../lib/sessionAnalyzer';
 import SessionReport from './SessionReport';
@@ -128,16 +126,8 @@ export default function EcgFullPanel() {
     const tLineRef = useRef<WebglLine | null>(null);
     const panTompkins = useRef(new PanTompkinsDetector(SAMPLE_RATE));
     const intervalCalculator = useRef(new ECGIntervalCalculator(SAMPLE_RATE));
-
     // Add this state to store currently visible PQRST points
     const [visiblePQRST, setVisiblePQRST] = useState<PQRSTPoint[]>([]);
-
-    // Add this type definition with your other types
-    type STSegmentData = {
-        deviation: number;
-        status: 'normal' | 'elevation' | 'depression';
-    };
-
     // Add this state inside your component
     const [stSegmentData, setSTSegmentData] = useState<STSegmentData | null>(null);
 
@@ -148,6 +138,13 @@ export default function EcgFullPanel() {
         summary: ReturnType<typeof getRollingSummary> | null,
         latest: { prediction: string, confidence: number } | null
     } | null>(null);
+
+
+    // Add this type definition with your other types
+    type STSegmentData = {
+        deviation: number;
+        status: 'normal' | 'elevation' | 'depression';
+    };
 
 
     useEffect(() => {
@@ -307,7 +304,6 @@ export default function EcgFullPanel() {
             }
         }
 
-
         // Extract RR intervals for HRV analysis
         if (peaks.length >= 2) {
 
@@ -317,8 +313,6 @@ export default function EcgFullPanel() {
             const metrics = hrvCalculator.current.getAllMetrics();
 
             setHrvMetrics(metrics);
-        } else {
-            console.log('Not enough peaks for HRV analysis');
         }
 
         // Calculate ECG intervals when PQRST points are available
@@ -505,7 +499,7 @@ export default function EcgFullPanel() {
         }
     }
 
-    // Replace your existing adaptSignalForModel function with this enhanced version:
+    // adaptSignalForModel function with this enhanced version:
 
     const adaptSignalForModel = (ecgWindow: number[]): number[] => {
         // Step 1: Convert your normalized signal back to MIT-BIH-like scale
@@ -560,8 +554,7 @@ export default function EcgFullPanel() {
         return normalizedSignal;
     };
 
-    // Now replace your existing analyzeCurrent function with this updated version:
-    // Update the R-R interval filtering to be less strict
+    // AnalyzeCurrent function with this updated version:
     const analyzeCurrent = async () => {
 
         if (!ecgModel) {
@@ -574,8 +567,6 @@ export default function EcgFullPanel() {
         const mitBihLikeData = dataCh0.current.map(x => (x * 400) + 1024);
         const maxAbs = Math.max(...mitBihLikeData.map(x => Math.abs(x - 1024)));
         const variance = mitBihLikeData.reduce((sum, val) => sum + Math.pow(val - 1024, 2), 0) / mitBihLikeData.length;
-
-
 
         // MIT-BIH-style quality thresholds
         if (maxAbs < 50 || variance < 100) {  // 50 units ≈ 244 μV, reasonable for ECG
@@ -592,7 +583,7 @@ export default function EcgFullPanel() {
             ? detectedPeaks
             : bpmCalculator.current.detectPeaks(dataCh0.current);
 
-        // RELAXED: More forgiving filtering for consumer ECG devices
+        // Filter peaks to ensure physiological plausibility
         const filteredPeaks = recentPeaks.filter((peak, index) => {
             if (index === 0) return true;
             const timeDiff = (peak - recentPeaks[index - 1]) / SAMPLE_RATE * 1000;
@@ -606,13 +597,9 @@ export default function EcgFullPanel() {
             return;
         }
 
-
-
         // Get the most recent R-peak
         const latestRPeak = filteredPeaks[filteredPeaks.length - 1];
         const halfBeat = Math.floor(MODEL_INPUT_LENGTH / 2); // 67 samples
-
-
 
         // FIXED: Better circular buffer handling
         let ecgWindow: number[] = [];
@@ -661,8 +648,6 @@ export default function EcgFullPanel() {
         try {
             const outputTensor = ecgModel.predict(inputTensor) as tf.Tensor;
             const probabilities = await outputTensor.data();
-
-
 
             if (!probabilities || probabilities.length === 0) {
                 console.error("Model output is empty or invalid");
@@ -862,96 +847,6 @@ export default function EcgFullPanel() {
         return { deviation, status };
     };
 
-    // Add this function inside your EcgFullPanel component
-    const generateSummaryReport = () => {
-        if (!ecgIntervals) {
-            alert("No ECG data available for report generation");
-            return;
-        }
-
-        // Create CSV content
-        let csvContent = "data:text/csv;charset=utf-8,";
-        csvContent += "ECG Summary Report\n";
-        csvContent += `Generated on,${new Date().toLocaleString()}\n`;
-        csvContent += `Sampling Rate,${SAMPLE_RATE} Hz\n`;
-        csvContent += `Model Input Length,${MODEL_INPUT_LENGTH} samples\n\n`;
-
-        // Add patient info
-        csvContent += "Patient Information\n";
-        csvContent += `Gender,${gender === 'male' ? 'Male' : 'Female'}\n\n`;
-
-        // Add heart rate and rhythm information
-        csvContent += "Vital Signs\n";
-        csvContent += `Heart Rate,${ecgIntervals.bpm.toFixed(1)} BPM\n`;
-        csvContent += `Heart Rate Status,${ecgIntervals.status.bpm}\n\n`;
-
-        // Add ECG intervals
-        csvContent += "ECG Intervals\n";
-        csvContent += `RR Interval,${ecgIntervals.rr.toFixed(0)} ms\n`;
-        csvContent += `PR Interval,${ecgIntervals.pr.toFixed(0)} ms\n`;
-        csvContent += `QRS Duration,${ecgIntervals.qrs.toFixed(0)} ms\n`;
-        csvContent += `QT Interval,${ecgIntervals.qt ? ecgIntervals.qt.toFixed(0) : "N/A"} ms\n`;
-        csvContent += `QTc Interval,${ecgIntervals.qtc.toFixed(0)} ms\n`;
-
-        // Add ST segment data if available
-        if (stSegmentData) {
-            csvContent += `ST Deviation,${stSegmentData.deviation.toFixed(2)} mm\n`;
-            csvContent += `ST Status,${stSegmentData.status}\n`;
-        }
-
-        csvContent += "\nInterval Status\n";
-        csvContent += `PR Status,${ecgIntervals.status.pr}\n`;
-        csvContent += `QRS Status,${ecgIntervals.status.qrs}\n`;
-        csvContent += `QTc Status,${ecgIntervals.status.qtc}\n`;
-
-        // Add HRV metrics if available
-        if (hrvMetrics && hrvMetrics.sampleCount > 0) {
-            csvContent += "\nHeart Rate Variability Analysis\n";
-            csvContent += `RMSSD,${hrvMetrics.rmssd.toFixed(1)} ms\n`;
-            csvContent += `SDNN,${hrvMetrics.sdnn.toFixed(1)} ms\n`;
-            csvContent += `pNN50,${hrvMetrics.pnn50.toFixed(1)}%\n`;
-            csvContent += `Triangular Index,${hrvMetrics.triangularIndex.toFixed(1)}\n`;
-            csvContent += `LF/HF Ratio,${hrvMetrics.lfhf.ratio.toFixed(2)}\n`;
-
-            // Add physiological state
-            if (physioState) {
-                csvContent += `Physiological State,${physioState.state}\n`;
-                csvContent += `State Confidence,${(physioState.confidence * 100).toFixed(0)}%\n`;
-            }
-        }
-
-        csvContent += "\nPotential Findings\n";
-
-        // Add abnormalities
-        const findings = [];
-        if (ecgIntervals.status.bpm === 'bradycardia') findings.push("Bradycardia (slow heart rate)");
-        if (ecgIntervals.status.bpm === 'tachycardia') findings.push("Tachycardia (fast heart rate)");
-        if (ecgIntervals.status.pr === 'long') findings.push("Prolonged PR interval - Possible 1st degree AV block");
-        if (ecgIntervals.status.qrs === 'wide') findings.push("Wide QRS complex - Possible bundle branch block");
-        if (ecgIntervals.status.qtc === 'prolonged') findings.push("Prolonged QTc interval - Increased arrhythmia risk");
-        if (stSegmentData?.status === 'elevation') findings.push("ST segment elevation - Possible myocardial injury");
-        if (stSegmentData?.status === 'depression') findings.push("ST segment depression - Possible ischemia");
-
-        if (findings.length > 0) {
-            findings.forEach(finding => {
-                csvContent += `${finding}\n`;
-            });
-        } else {
-            csvContent += "No abnormalities detected\n";
-        }
-
-        csvContent += "\nDISCLAIMER: This is not a medical device. Do not use for diagnosis or treatment decisions.\n";
-        csvContent += "Analysis is based on a limited dataset and should be confirmed by a qualified healthcare professional.\n";
-
-        // Create download link
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        link.setAttribute("download", `ecg-report-${new Date().toISOString().slice(0, 10)}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
 
     const [showAIAnalysis, setShowAIAnalysis] = useState(false); // Add this state to control AI Analysis panel visibility
 
@@ -1030,8 +925,6 @@ export default function EcgFullPanel() {
         const freshRPeaks = panTompkins.current.detectQRS(recordedData);
         const freshPQRST = pqrstDetector.current.detectWaves(recordedData, freshRPeaks, 0);
 
-
-
         const freshIntervals = intervalCalculator.current.calculateIntervals(freshPQRST);
 
         if (!freshIntervals) {
@@ -1091,7 +984,6 @@ export default function EcgFullPanel() {
         csvContent += `ECG Classification,${sessionResults.aiClassification.prediction}\n`;
         csvContent += `Classification Confidence,${sessionResults.aiClassification.confidence.toFixed(1)}%\n\n`;
 
-        // Add more sections for intervals, HRV, etc.
 
         // Create download link
         const encodedUri = encodeURI(csvContent);
@@ -1105,7 +997,6 @@ export default function EcgFullPanel() {
 
     // Modify your data processing to record data
     useEffect(() => {
-        // Existing data processing code...
 
         // Add this to record data when in recording mode
         if (isRecording) {
@@ -1129,33 +1020,6 @@ export default function EcgFullPanel() {
     // Patient Info modal state
     const [showPatientInfo, setShowPatientInfo] = useState(false);
 
-    const predictionDetails: Record<string, { label: string, description: string, symbols: string[] }> = {
-        "Normal": {
-            label: "Normal beat",
-            description: "A typical heartbeat with no detected abnormalities.",
-            symbols: ['N', '.', 'L', 'R', 'e', 'j']
-        },
-        "Supraventricular": {
-            label: "Supraventricular ectopic beat",
-            description: "A heartbeat originating above the ventricles (e.g., atria).",
-            symbols: ['A', 'a', 'J', 'S']
-        },
-        "Ventricular": {
-            label: "Ventricular ectopic beat",
-            description: "A heartbeat originating in the ventricles (lower chambers).",
-            symbols: ['V', 'E', 'r']
-        },
-        "Fusion": {
-            label: "Fusion beat",
-            description: "A beat formed by the combination of normal and abnormal impulses.",
-            symbols: ['F']
-        },
-        "Other": {
-            label: "Other/unknown beat",
-            description: "A beat that does not fit standard categories or is unclassified.",
-            symbols: ['Q', '/', 'f', 'n', 'unknown']
-        }
-    };
 
     return (
         <div className="relative w-full h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 ">

@@ -361,8 +361,7 @@ export class SessionAnalyzer {
         // In MIT-BIH, R-peaks are typically positive deflections above 1024
         if (maxValue < 1024) {
             needsFlip = true;
-            console.log("Session analysis: Detected negative R-peak, flipping to match MIT-BIH polarity");
-        }
+           }
 
         const polarityCorrectedSignal = needsFlip ?
             mitBihLikeSignal.map(x => 2048 - x) :  // Flip around 1024 baseline
@@ -373,16 +372,12 @@ export class SessionAnalyzer {
         const std = Math.sqrt(polarityCorrectedSignal.reduce((a, b) => a + (b - mean) ** 2, 0) / polarityCorrectedSignal.length);
 
         if (std < 10) {  // Minimum std in MIT-BIH units
-            console.log("Session analysis: Signal too flat for MIT-BIH-style analysis");
+           
             return new Array(ecgWindow.length).fill(0);
         }
 
         const normalizedSignal = polarityCorrectedSignal.map(x => (x - mean) / std);
 
-        console.log(`Session MIT-BIH adaptation: R-peak at ${maxIdx}, ` +
-                    `MIT-BIH value: ${maxValue.toFixed(0)}, ` +
-                    `flipped: ${needsFlip}, ` +
-                    `normalized peak: ${normalizedSignal[maxIdx].toFixed(3)}`);
 
         return normalizedSignal;
     }
@@ -420,8 +415,6 @@ export class SessionAnalyzer {
             const maxAbs = Math.max(...mitBihLikeData.map(x => Math.abs(x - 1024)));
             const variance = mitBihLikeData.reduce((sum, val) => sum + Math.pow(val - 1024, 2), 0) / mitBihLikeData.length;
 
-            console.log(`Session signal quality - maxAbs: ${maxAbs.toFixed(1)} MIT-BIH units, variance: ${variance.toFixed(1)}`);
-
             // MIT-BIH-style quality thresholds
             if (maxAbs < 50 || variance < 100) {  // 50 units ≈ 244 μV
                 return {
@@ -451,8 +444,6 @@ export class SessionAnalyzer {
                 const timeDiff = (peak - peaks[index - 1]) / this.sampleRate * 1000;
                 return timeDiff >= 300 && timeDiff <= 1500;
             });
-
-            console.log(`Session analysis: Processing ${filteredPeaks.length} filtered peaks out of ${peaks.length} total`);
 
             // Analyze individual beats around R-peaks
             for (const peak of filteredPeaks) {
@@ -546,9 +537,6 @@ export class SessionAnalyzer {
                         validPredictions++;
                         confidenceSum += confidence;
 
-                        if (validPredictions <= 5) {  // Log first few predictions for debugging
-                            console.log(`Session beat ${validPredictions}: ${predictedClass} (${(confidence * 100).toFixed(1)}%)`);
-                        }
                     }
                     
                     outputTensor.dispose();
@@ -560,8 +548,6 @@ export class SessionAnalyzer {
                 totalBeats++;
             }
 
-            console.log(`Session analysis complete: ${validPredictions} valid predictions from ${totalBeats} beats`);
-            console.log("Beat distribution:", beatClassifications);
 
             // Determine overall rhythm classification based on beat analysis
             let overallPrediction = "Insufficient Data";
@@ -612,10 +598,7 @@ export class SessionAnalyzer {
                     }
                 }
 
-                console.log(`Session final prediction: ${overallPrediction} (${overallConfidence.toFixed(1)}%)`);
-            } else {
-                console.log(`Session analysis: Only ${validPredictions} valid predictions - insufficient for reliable analysis`);
-            }
+               }
 
             return {
                 prediction: overallPrediction,
@@ -836,7 +819,7 @@ export class SessionAnalyzer {
         const filteredRRs = rrIntervals.filter(rr => rr >= 300 && rr <= 2000);
 
         if (filteredRRs.length === 0) {
-            console.warn("No valid RR intervals after filtering.");
+           
             return { average: 0, min: 0, max: 0 };
         }
 
