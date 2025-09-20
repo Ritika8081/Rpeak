@@ -259,6 +259,23 @@ This project is licensed under the MIT License - see LICENSE file for details.
 
 ---
 
+## 🛠️ Credits & Tools Used
+
+This project leverages the following open-source tools and libraries:
+
+- [Next.js](https://nextjs.org/) – React framework for web apps
+- [TensorFlow.js](https://www.tensorflow.org/js) – Machine learning in the browser
+- [Lucide Icons](https://lucide.dev/) – Beautiful open-source icon library
+- [WebglPlot](https://github.com/fohristiwhirl/webgl-plot) – High-performance waveform visualization
+- [Tailwind CSS](https://tailwindcss.com/) – Utility-first CSS framework
+- [LucideCards](https://github.com/lucide-icons/lucide) – Card-style UI components (if used)
+- [React](https://react.dev/) – UI library
+- [TypeScript](https://www.typescriptlang.org/) – Typed JavaScript
+
+Special thanks to the authors and maintainers of these projects for enabling rapid development and beautiful UI/UX.
+
+---
+
 ## 💡 Support
 
 For technical support, feature requests, or questions:
