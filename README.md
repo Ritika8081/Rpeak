@@ -129,7 +129,7 @@ Click sidebar buttons to activate different analysis tools:
 - **Performance:** <50ms inference time per beat
 
 ### Browser Compatibility
-- **Recommended:** Chrome 89+, Edge 89+, Safari 15+
+- **Recommended:** Chrome, Edge
 - **Required:** Web Bluetooth API support
 
 ---
@@ -179,13 +179,6 @@ npm start
 
 ---
 
-## 🔒 Privacy & Security
-
-- **Local Processing:** All ECG analysis happens in your browser
-- **No Data Transmission:** ECG signals never leave your device
-
----
-
 ## 🎯 Use Cases
 
 ### For Healthcare Professionals
@@ -221,8 +214,6 @@ This application is designed for **educational, research, and development purpos
 While the algorithms implement clinically-validated methods:
 - Results may vary depending on signal quality and device characteristics
 - Always consult qualified healthcare professionals for medical interpretation
-
----
 
 ---
 
@@ -286,4 +277,3 @@ For technical support, feature requests, or questions:
 
 ---
 
-**Built with ❤️ for advancing accessible healthcare technology**
