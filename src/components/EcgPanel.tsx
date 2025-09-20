@@ -395,12 +395,16 @@ export default function EcgFullPanel() {
                     finalPeaks = bpmCalculator.current.detectPeaks(dataCh0.current);
                 }
 
-                // Calculate BPM from peaks
+
                 const bpm = bpmCalculator.current.calculateBPMFromPeaks(finalPeaks);
 
-                if (bpm && bpm >= 40 && bpm <= 200) {
+                if (typeof bpm === "number" && bpm >= 40 && bpm <= 200) {
                     const smoothedBPM = bpmCalculator.current.smoothBPM(bpm);
-                    setBpmDisplay(Math.round(smoothedBPM) + " BPM");
+                    if (smoothedBPM >= 40 && smoothedBPM <= 200) {
+                        setBpmDisplay(Math.round(smoothedBPM) + " BPM");
+                    } else {
+                        setBpmDisplay("-- BPM");
+                    }
                 } else {
                     setBpmDisplay("-- BPM");
                 }
