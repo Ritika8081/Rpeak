@@ -46,7 +46,7 @@ export class BPMCalculator {
     // R peaks should be positive, so use a direct threshold rather than absolute value
     const threshold = Math.max(0.1, dynamicThreshold);
 
-    
+
 
     // Look for peaks that exceed the threshold and are local maxima
     for (let i = this.minDistance; i < dataLength - this.minDistance; i++) {

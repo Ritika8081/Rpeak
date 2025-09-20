@@ -258,7 +258,7 @@ export class PQRSTDetector {
     private isValidQRS(data: number[], rIndex: number): boolean {
         // Updated window sizes for 360Hz sampling rate
         const qrsWindow = Math.floor(this.sampleRate * 0.06); // 60ms = ~22 samples at 360Hz
-        
+
         // Check if this point has the QRS morphology (Q dip before R, S dip after R)
         // Look for Q wave (negative deflection before R)
         let hasQWave = false;

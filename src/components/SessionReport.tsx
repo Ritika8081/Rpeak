@@ -319,8 +319,8 @@ export default function SessionReport({
                             <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-4">
                                 <div className="text-gray-400 text-sm mb-1">Average Heart Rate</div>
                                 <div className={`font-bold text-2xl ${analysisResults.summary.heartRate.status === 'normal' ? 'text-green-400' :
-                                        analysisResults.summary.heartRate.status === 'bradycardia' ? 'text-yellow-400' :
-                                            'text-red-400'
+                                    analysisResults.summary.heartRate.status === 'bradycardia' ? 'text-yellow-400' :
+                                        'text-red-400'
                                     }`}>
                                     {analysisResults.summary.heartRate.average.toFixed(1)} <span className="text-sm">BPM</span>
                                 </div>
@@ -382,8 +382,8 @@ export default function SessionReport({
                             <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
                                 <div className="text-gray-400 text-xs mb-1">PR Interval</div>
                                 <div className={`font-bold text-lg ${analysisResults.intervals.pr.status === 'normal' ? 'text-green-400' :
-                                        analysisResults.intervals.pr.status === 'short' ? 'text-yellow-400' :
-                                            'text-red-400'
+                                    analysisResults.intervals.pr.status === 'short' ? 'text-yellow-400' :
+                                        'text-red-400'
                                     }`}>
                                     {analysisResults.intervals.pr.average.toFixed(0)} <span className="text-xs">ms</span>
                                 </div>
