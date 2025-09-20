@@ -514,79 +514,59 @@ export default function EcgFullPanel() {
     // Replace your existing adaptSignalForModel function with this enhanced version:
 
     const adaptSignalForModel = (ecgWindow: number[]): number[] => {
-        // Step 1: Remove device-specific DC offset
-        const mean = ecgWindow.reduce((a, b) => a + b, 0) / ecgWindow.length;
-        const centeredSignal = ecgWindow.map(x => x - mean);
+        // Step 1: Convert your normalized signal back to MIT-BIH-like scale
+        // Your signal: -1 to +1 → Convert to MIT-BIH: ~500-1500 range
+        const mitBihLikeSignal = ecgWindow.map(x => {
+            // Scale from [-1, +1] to MIT-BIH range [0, 2048] with 1024 baseline
+            return (x * 400) + 1024;  // Assumes typical ±400 unit variation
+        });
 
-        // Step 2: Detect R-peak in the window (should be near center)
+        // Step 2: Detect R-peak in the window
         const centerIdx = Math.floor(ecgWindow.length / 2);
-        const searchRange = 30; // Increased search range from 25 to 30
+        const searchRange = 30;
 
         let maxIdx = centerIdx;
-        let maxValue = centeredSignal[centerIdx];
+        let maxValue = mitBihLikeSignal[centerIdx];
 
         for (let i = Math.max(0, centerIdx - searchRange);
-            i < Math.min(ecgWindow.length, centerIdx + searchRange);
-            i++) {
-            if (Math.abs(centeredSignal[i]) > Math.abs(maxValue)) {
-                maxValue = centeredSignal[i];
+             i < Math.min(ecgWindow.length, centerIdx + searchRange);
+             i++) {
+            if (Math.abs(mitBihLikeSignal[i] - 1024) > Math.abs(maxValue - 1024)) {
+                maxValue = mitBihLikeSignal[i];
                 maxIdx = i;
             }
         }
 
-        // Step 3: Enhanced polarity detection for consumer devices
+        // Step 3: Apply MIT-BIH-style polarity correction
         let needsFlip = false;
-
-        // Method 1: Check if the detected R-peak is negative
-        if (maxValue < 0) {
+        
+        // In MIT-BIH, R-peaks are typically positive deflections above 1024
+        if (maxValue < 1024) {
             needsFlip = true;
-            console.log("Detected negative R-peak, flipping signal polarity");
+            console.log("Detected negative R-peak, flipping to match MIT-BIH polarity");
         }
 
-        // Method 2: Check overall signal polarity by examining the peak region
-        const peakRegionStart = Math.max(0, maxIdx - 15);
-        const peakRegionEnd = Math.min(centeredSignal.length, maxIdx + 15);
-        const peakRegion = centeredSignal.slice(peakRegionStart, peakRegionEnd);
-        const peakRegionMean = peakRegion.reduce((a, b) => a + b, 0) / peakRegion.length;
-
-        if (peakRegionMean < -0.05) {  // Reduced threshold from -0.1
-            needsFlip = true;
-            console.log("Detected negative peak region, flipping signal polarity");
-        }
-
-        // Apply polarity correction
         const polarityCorrectedSignal = needsFlip ?
-            centeredSignal.map(x => -x) :
-            centeredSignal;
+            mitBihLikeSignal.map(x => 2048 - x) :  // Flip around 1024 baseline
+            mitBihLikeSignal;
 
-        // Step 4: More forgiving amplitude scaling
-        const rPeakValue = Math.abs(polarityCorrectedSignal[maxIdx]);
+        // Step 4: Apply Z-score normalization (same as training)
+        const mean = polarityCorrectedSignal.reduce((a, b) => a + b, 0) / polarityCorrectedSignal.length;
+        const std = Math.sqrt(polarityCorrectedSignal.reduce((a, b) => a + (b - mean) ** 2, 0) / polarityCorrectedSignal.length);
 
-        // Calculate signal variance to determine scaling approach
-        const variance = polarityCorrectedSignal.reduce((sum, val) => sum + val * val, 0) / polarityCorrectedSignal.length;
-
-        let scaleFactor;
-        if (variance > 0.03) {  // Reduced from 0.05
-            // High variance signal - scale more conservatively
-            scaleFactor = rPeakValue > 0 ? 0.7 / rPeakValue : 1.0;  // Increased from 0.6
-        } else {
-            // Low variance signal - scale more aggressively to match MIT-BIH
-            scaleFactor = rPeakValue > 0 ? 1.0 / rPeakValue : 1.0;  // Reduced from 1.2
+        if (std < 10) {  // Minimum std in MIT-BIH units
+            console.log("Signal too flat for MIT-BIH-style analysis");
+            return new Array(ecgWindow.length).fill(0);
         }
 
-        // Apply scaling with MIT-BIH-like amplitude (increased from 0.6 to 0.7)
-        const scaledSignal = polarityCorrectedSignal.map(x => x * scaleFactor * 0.7);
+        const normalizedSignal = polarityCorrectedSignal.map(x => (x - mean) / std);
 
-        // Step 5: Apply mild smoothing to reduce high-frequency noise
-        const smoothedSignal = scaledSignal.map((val, idx) => {
-            if (idx === 0 || idx === scaledSignal.length - 1) return val;
-            return (scaledSignal[idx - 1] + val * 2 + scaledSignal[idx + 1]) / 4;
-        });
+        console.log(`MIT-BIH adaptation: R-peak at ${maxIdx}, ` +
+                    `MIT-BIH value: ${maxValue.toFixed(0)}, ` +
+                    `flipped: ${needsFlip}, ` +
+                    `normalized peak: ${normalizedSignal[maxIdx].toFixed(3)}`);
 
-        console.log(`Enhanced signal adaptation: R-peak at ${maxIdx}, original ${maxValue.toFixed(4)}, ` +
-            `flipped: ${needsFlip}, final R-peak: ${smoothedSignal[maxIdx].toFixed(4)}, scale: ${scaleFactor.toFixed(4)}`);
-
-        return smoothedSignal;
+        return normalizedSignal;
     };
 
     // Now replace your existing analyzeCurrent function with this updated version:
@@ -599,14 +579,15 @@ export default function EcgFullPanel() {
             return;
         }
 
-        // Check signal quality FIRST
-        const maxAbs = Math.max(...dataCh0.current.map(Math.abs));
-        const variance = dataCh0.current.reduce((sum, val) => sum + Math.pow(val, 2), 0) / dataCh0.current.length;
+        // Convert signal quality check to MIT-BIH-like scale
+        const mitBihLikeData = dataCh0.current.map(x => (x * 400) + 1024);
+        const maxAbs = Math.max(...mitBihLikeData.map(x => Math.abs(x - 1024)));
+        const variance = mitBihLikeData.reduce((sum, val) => sum + Math.pow(val - 1024, 2), 0) / mitBihLikeData.length;
 
-        console.log(`Signal quality check - maxAbs: ${maxAbs.toFixed(4)}, variance: ${variance.toFixed(6)}`);
+        console.log(`MIT-BIH-style signal quality - maxAbs: ${maxAbs.toFixed(1)} units, variance: ${variance.toFixed(1)}`);
 
-        // RELAXED signal quality requirements for consumer devices
-        if (maxAbs < 0.1 || variance < 0.005) {  // Reduced from 0.2 and 0.01
+        // MIT-BIH-style quality thresholds
+        if (maxAbs < 50 || variance < 100) {  // 50 units ≈ 244 μV, reasonable for ECG
             console.log("Signal too weak for reliable AI analysis");
             setModelPrediction({ prediction: "Poor Signal", confidence: 0 });
             return;
