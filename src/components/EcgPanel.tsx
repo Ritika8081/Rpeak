@@ -103,7 +103,7 @@ export default function EcgFullPanel() {
         if (!modelLoaded || !ecgIntervals) return;
         const interval = setInterval(() => {
             analyzeCurrent();
-        }, 10000); // Run every 10 seconds
+        }, 60000); // 1 minute refresh
         return () => clearInterval(interval);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [autoAnalyze, modelLoaded, ecgIntervals]);
@@ -960,14 +960,12 @@ export default function EcgFullPanel() {
         // Run initial analysis immediately
         analyzeCurrent();
 
-        // Set up auto-refresh every 3 seconds
+        // Set up auto-refresh every 1 minute (60,000 ms)
         const interval = setInterval(() => {
-
             analyzeCurrent();
-        }, 3000); // Reduced from 10 seconds to 3 seconds
+        }, 60000); // 1 minute refresh
 
         return () => {
-
             clearInterval(interval);
         };
     }, [showAIAnalysis, modelLoaded, connected]); // Removed ecgIntervals dependency
@@ -1567,7 +1565,7 @@ export default function EcgFullPanel() {
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-blue-400">Analysis Status:</span>
                             <span className={`font-semibold ${modelLoaded && connected ? 'text-green-400' : 'text-yellow-400'}`}>
-                                {modelLoaded && connected ? '🟢 Active (3s refresh)' :
+                                {modelLoaded && connected ? '🟢 Active (1 min refresh)' :
                                     modelLoaded ? '🟡 Ready (connect device)' : '🔴 Loading model...'}
                             </span>
                         </div>

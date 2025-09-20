@@ -4,6 +4,11 @@ A comprehensive web application for real-time ECG monitoring, heart rate variabi
 
 ---
 
+> **Note:**  
+> This application is currently in the **development and testing phase**. Features, performance, and results may change as improvements are made. Please use for research, learning, and prototyping only—not for clinical or diagnostic purposes.
+
+---
+
 ## ✨ Key Features
 
 - **🔴 Real-Time ECG Monitoring** - Live waveform visualization at 360Hz sampling rate
@@ -216,6 +221,14 @@ This application is designed for **educational, research, and development purpos
 While the algorithms implement clinically-validated methods:
 - Results may vary depending on signal quality and device characteristics
 - Always consult qualified healthcare professionals for medical interpretation
+
+---
+
+---
+
+## 🙏 Acknowledgements
+
+Special thanks to **Deepak Khatri** and **Krishnanshu Mittal** for their continuous support, guidance, and valuable feedback throughout the development of this project. Your encouragement and insights have been instrumental in making this application possible.
 
 ---
 
