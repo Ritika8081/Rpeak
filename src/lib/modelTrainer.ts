@@ -330,9 +330,9 @@ export async function trainBeatLevelECGModel(ecgPath: string, annPath: string, o
 // Dynamically determine base path for static assets
 function getBasePath() {
   if (typeof window !== "undefined") {
-    // If running on GitHub Pages, served from /ECG_Monitor/
-    if (window.location.pathname.startsWith("/ECG_Monitor")) {
-      return "/ECG_Monitor";
+    // If running on GitHub Pages, served from /Rpeak/
+    if (window.location.pathname.startsWith("/Rpeak")) {
+      return "/Rpeak";
     }
   }
   return "";

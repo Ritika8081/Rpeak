@@ -33,7 +33,7 @@ A comprehensive web application for real-time ECG monitoring, heart rate variabi
 
 1. **Clone and setup:**
    ```bash
-   git clone https://github.com/yourusername/ecg-monitor-next.git
+   git clone https://github.com/yourusername/Rpeak.git
    cd ecg-monitor-next
    npm install
    ```

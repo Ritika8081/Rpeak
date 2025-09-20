@@ -9,9 +9,9 @@ const INPUT_LENGTH = 135; // Updated to match your model's input shape
 function getModelPath(): string {
   if (typeof window !== "undefined") {
     const path = window.location.pathname;
-    // Adjust 'ECG_Monitor' to your actual repo name if different
-    if (path.startsWith('/ECG_Monitor')) {
-      return '/ECG_Monitor/models/beat-level-ecg-model.json';
+    // Adjust 'Rpeak' to your actual repo name if different
+    if (path.startsWith('/Rpeak')) {
+      return '/Rpeak/models/beat-level-ecg-model.json';
     }
   }
   // Default for local/dev

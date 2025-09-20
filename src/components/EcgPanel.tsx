@@ -434,7 +434,7 @@ export default function EcgFullPanel() {
         async function loadModel() {
             try {
                 // Always try to load the model directly
-                const basePath = window.location.pathname.startsWith('/ECG_Monitor') ? '/ECG_Monitor/' : '/';
+                const basePath = window.location.pathname.startsWith('/Rpeak') ? '/Rpeak/' : '/';
                 const model = await tf.loadLayersModel(`${basePath}models/beat-level-ecg-model.json`);
                 setEcgModel(model);
                 setModelLoaded(true);
