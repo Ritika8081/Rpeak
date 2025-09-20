@@ -226,14 +226,7 @@ export default function EcgFullPanel() {
         const maxAbs = Math.max(...dataCh0.current.map(Math.abs), 0.1);
         return maxAbs > 0.9 ? 0.9 / maxAbs : 1;
     }
-    function mapSymbolToAAMI(symbol: string): string {
-        if (['N', '.', 'L', 'R', 'e', 'j'].includes(symbol)) return 'Normal';
-        if (['A', 'a', 'J', 'S'].includes(symbol)) return 'Supraventricular';
-        if (['V', 'E', 'r'].includes(symbol)) return 'Ventricular';
-        if (['F'].includes(symbol)) return 'Fusion';
-        if (['Q', '/', 'f', 'n'].includes(symbol)) return 'Other';
-        return 'Other';
-    }
+
     // Add this function to see what data we have
     function getRollingSummary(buffer?: { prediction: string, confidence: number }[]) {
         const arr = buffer ?? beatBuffer;
@@ -254,9 +247,6 @@ export default function EcgFullPanel() {
         };
     }
 
-    const prevHrvMetrics = useRef<HRVMetrics | null>(null);
-    const lastProcessedPeak = useRef<number | null>(null);
-
     function updatePeaks() {
         // Add debug for signal diagnostics
         const maxAbs = Math.max(...dataCh0.current.map(Math.abs));
@@ -265,7 +255,7 @@ export default function EcgFullPanel() {
 
         // Skip peak detection if the signal is too weak or too flat
         if (maxAbs < 0.05 || variance < 0.0002) {
-            console.log('Signal too weak or flat for detection, skipping');
+
             pqrstPoints.current = [];
             if (showPQRST) {
                 setVisiblePQRST([]);
@@ -529,8 +519,8 @@ export default function EcgFullPanel() {
         let maxValue = mitBihLikeSignal[centerIdx];
 
         for (let i = Math.max(0, centerIdx - searchRange);
-             i < Math.min(ecgWindow.length, centerIdx + searchRange);
-             i++) {
+            i < Math.min(ecgWindow.length, centerIdx + searchRange);
+            i++) {
             if (Math.abs(mitBihLikeSignal[i] - 1024) > Math.abs(maxValue - 1024)) {
                 maxValue = mitBihLikeSignal[i];
                 maxIdx = i;
@@ -539,11 +529,11 @@ export default function EcgFullPanel() {
 
         // Step 3: Apply MIT-BIH-style polarity correction
         let needsFlip = false;
-        
+
         // In MIT-BIH, R-peaks are typically positive deflections above 1024
         if (maxValue < 1024) {
             needsFlip = true;
-            console.log("Detected negative R-peak, flipping to match MIT-BIH polarity");
+
         }
 
         const polarityCorrectedSignal = needsFlip ?
@@ -555,16 +545,13 @@ export default function EcgFullPanel() {
         const std = Math.sqrt(polarityCorrectedSignal.reduce((a, b) => a + (b - mean) ** 2, 0) / polarityCorrectedSignal.length);
 
         if (std < 10) {  // Minimum std in MIT-BIH units
-            console.log("Signal too flat for MIT-BIH-style analysis");
+
             return new Array(ecgWindow.length).fill(0);
         }
 
         const normalizedSignal = polarityCorrectedSignal.map(x => (x - mean) / std);
 
-        console.log(`MIT-BIH adaptation: R-peak at ${maxIdx}, ` +
-                    `MIT-BIH value: ${maxValue.toFixed(0)}, ` +
-                    `flipped: ${needsFlip}, ` +
-                    `normalized peak: ${normalizedSignal[maxIdx].toFixed(3)}`);
+
 
         return normalizedSignal;
     };
@@ -572,9 +559,9 @@ export default function EcgFullPanel() {
     // Now replace your existing analyzeCurrent function with this updated version:
     // Update the R-R interval filtering to be less strict
     const analyzeCurrent = async () => {
-        console.log("analyzeCurrent called - AI Analysis triggered");
+
         if (!ecgModel) {
-            console.log("No model loaded");
+
             setModelPrediction({ prediction: "Analyzing", confidence: 0 });
             return;
         }
@@ -584,11 +571,11 @@ export default function EcgFullPanel() {
         const maxAbs = Math.max(...mitBihLikeData.map(x => Math.abs(x - 1024)));
         const variance = mitBihLikeData.reduce((sum, val) => sum + Math.pow(val - 1024, 2), 0) / mitBihLikeData.length;
 
-        console.log(`MIT-BIH-style signal quality - maxAbs: ${maxAbs.toFixed(1)} units, variance: ${variance.toFixed(1)}`);
+
 
         // MIT-BIH-style quality thresholds
         if (maxAbs < 50 || variance < 100) {  // 50 units ≈ 244 μV, reasonable for ECG
-            console.log("Signal too weak for reliable AI analysis");
+
             setModelPrediction({ prediction: "Poor Signal", confidence: 0 });
             return;
         }
@@ -610,18 +597,18 @@ export default function EcgFullPanel() {
         });
 
         if (filteredPeaks.length === 0) {
-            console.log("No valid R-peaks after filtering");
+
             setModelPrediction({ prediction: "No Valid Beats", confidence: 0 });
             return;
         }
 
-        console.log("Using R-peaks for AI analysis:", filteredPeaks);
+
 
         // Get the most recent R-peak
         const latestRPeak = filteredPeaks[filteredPeaks.length - 1];
         const halfBeat = Math.floor(MODEL_INPUT_LENGTH / 2); // 67 samples
 
-        console.log(`Extracting beat around R-peak at index ${latestRPeak}`);
+
 
         // FIXED: Better circular buffer handling
         let ecgWindow: number[] = [];
@@ -633,8 +620,6 @@ export default function EcgFullPanel() {
             ecgWindow.push(dataCh0.current[actualIdx]);
         }
 
-        console.log("ECG window extracted successfully, length:", ecgWindow.length);
-        console.log("Raw window sample values (first 10):", ecgWindow.slice(0, 10));
 
         // CRITICAL: Adapt signal to match training data characteristics
         const adaptedSignal = adaptSignalForModel(ecgWindow);
@@ -645,38 +630,35 @@ export default function EcgFullPanel() {
 
         // RELAXED variance threshold for consumer devices
         if (windowStd < 0.005) {  // Reduced from 0.01
-            console.log("Adapted signal too flat for analysis, std:", windowStd);
+
             setModelPrediction({ prediction: "Flat Signal", confidence: 0 });
             return;
         }
 
         const normWindow = adaptedSignal.map(x => (x - windowMean) / windowStd);
 
-        console.log("Adapted signal (first 10):", adaptedSignal.slice(0, 10));
-        console.log("Final normalized window (first 10):", normWindow.slice(0, 10));
 
         // Validate normalized data
         const normMean = normWindow.reduce((a, b) => a + b, 0) / normWindow.length;
         const normStd = Math.sqrt(normWindow.reduce((a, b) => a + (b - normMean) ** 2, 0) / normWindow.length);
 
-        console.log("Normalization check - mean:", normMean.toFixed(4), "std:", normStd.toFixed(4));
 
         // More lenient validation for consumer devices
         if (Math.abs(normMean) > 0.3) {  // Increased from 0.2
-            console.log("Beat normalization failed - mean too far from zero:", normMean);
+
             setModelPrediction({ prediction: "Normalization Failed", confidence: 0 });
             return;
         }
 
         // Create input tensor with correct shape [1, 135, 1]
         const inputTensor = tf.tensor3d([normWindow.map((v: number) => [v])], [1, MODEL_INPUT_LENGTH, 1]);
-        console.log("Input tensor shape:", inputTensor.shape);
+
 
         try {
             const outputTensor = ecgModel.predict(inputTensor) as tf.Tensor;
             const probabilities = await outputTensor.data();
 
-            console.log("Model prediction completed, probabilities:", Array.from(probabilities));
+
 
             if (!probabilities || probabilities.length === 0) {
                 console.error("Model output is empty or invalid");
@@ -687,7 +669,7 @@ export default function EcgFullPanel() {
 
             const predArray = Array.from(probabilities);
 
-            // REBALANCED: Less aggressive bias correction as you suggested
+
             const deviceBiasCorrection = [
                 1.4,  // Normal: moderate boost (reduced from 1.8)
                 0.9,  // Supraventricular: mild reduction (increased from 0.7)
@@ -700,18 +682,14 @@ export default function EcgFullPanel() {
             const correctedSum = correctedProbs.reduce((a, b) => a + b, 0);
             const normalizedProbs = correctedProbs.map(p => p / correctedSum);
 
-            console.log("Original probabilities:", predArray.map((p, i) => `${classLabels[i]}: ${(p * 100).toFixed(1)}%`));
-            console.log("Rebalanced bias-corrected probabilities:", normalizedProbs.map((p, i) => `${classLabels[i]}: ${(p * 100).toFixed(1)}%`));
 
             const maxIndex = normalizedProbs.indexOf(Math.max(...normalizedProbs));
             const confidence = normalizedProbs[maxIndex] * 100;
 
-            console.log("Final prediction details - maxIndex:", maxIndex, "confidence:", confidence.toFixed(1), "%");
-            console.log("Class labels:", classLabels);
 
             // Slightly reduced confidence threshold
             if (confidence < 40) {  // Reduced from 45
-                console.log(`Low confidence prediction: ${confidence}%`);
+
                 setModelPrediction({ prediction: "Uncertain", confidence });
                 inputTensor.dispose();
                 outputTensor.dispose();
@@ -719,7 +697,7 @@ export default function EcgFullPanel() {
             }
 
             if (maxIndex < 0 || maxIndex >= classLabels.length) {
-                console.error("Max index out of bounds for classLabels");
+
                 setModelPrediction({ prediction: "Classification Error", confidence: 0 });
                 inputTensor.dispose();
                 outputTensor.dispose();
@@ -727,7 +705,6 @@ export default function EcgFullPanel() {
             }
 
             const predictedClass = classLabels[maxIndex];
-            console.log("Final prediction:", predictedClass, "with confidence:", confidence.toFixed(1), "%");
 
             setModelPrediction({
                 prediction: predictedClass,
@@ -746,18 +723,18 @@ export default function EcgFullPanel() {
                             summary,
                             latest: rolling[rolling.length - 1]
                         });
-                        console.log("Batch result updated with", rolling.length, "medium+ confidence predictions");
+
                     }
                     return rolling;
                 });
             } else {
-                console.log(`Lower confidence (${confidence.toFixed(1)}%) - not adding to rolling analysis`);
+
             }
 
             inputTensor.dispose();
             outputTensor.dispose();
         } catch (err) {
-            console.error('Prediction failed:', err);
+
             setModelPrediction({ prediction: "Prediction Error", confidence: 0 });
             inputTensor.dispose();
         }
@@ -979,19 +956,18 @@ export default function EcgFullPanel() {
         if (!showAIAnalysis) return;
         if (!modelLoaded || !connected) return; // Changed from ecgIntervals to connected
 
-        console.log("AI Analysis panel opened - starting analysis");
 
         // Run initial analysis immediately
         analyzeCurrent();
 
         // Set up auto-refresh every 3 seconds
         const interval = setInterval(() => {
-            console.log("Auto-analysis trigger");
+
             analyzeCurrent();
         }, 3000); // Reduced from 10 seconds to 3 seconds
 
         return () => {
-            console.log("AI Analysis panel closed - stopping analysis");
+
             clearInterval(interval);
         };
     }, [showAIAnalysis, modelLoaded, connected]); // Removed ecgIntervals dependency
